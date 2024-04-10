@@ -3,16 +3,67 @@ const prisma = new PrismaClient()
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const jwtkey = process.env.JWTKEY
+const { Resend } = require('resend')
+
+const resend = new Resend('re_H8a4uyN5_5zav33KGSU86AZifVfa2PhJk');
+
+const generateEmail = async (req, res) => {
+    const { email } = req.body;
+
+    const payload = {
+        email: email
+    }
+    try {
+        const emailtoken = await jwt.sign(payload, 'ourSecretKey', { expiresIn: '10m' });
+
+        const chek = await resend.emails.send({
+            from: 'Acme <onboarding@resend.dev>',
+            to: [`${email}`],
+            subject: 'verify your email',
+            text: `your email key is: ${emailtoken}`,
+          });
+
+          console.log(chek)
+        res.status(200).json({ 'message': 'check email to verify' });
+    } catch (error) {
+
+        console.error('Error generating email token:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+const verifyEmail = (req, res, next) => {
+    const id = req.params.id;
+
+    console.log(id)
+
+    if (id) {
+        jwt.verify(id, 'ourSecretKey', (err, decoded) => {
+            if (err) {
+                return res.json({
+                    isLoggedIn: false,
+                    message: "incorrect verifaticon"
+                })
+            }
+            req.user = {};
+            req.user.email = decoded.email
+            next()
+        })
+    } else {
+        return res.status(400).json({ 'message': 'incorrect verifaticon' })
+    }
+}
 
 const Signup = async (req, res) => {
-    const { name, email, password } = req.body;
+    const { name, password } = req.body;
     const profile = req.file.filename;
 
-    console.log(name, " ",  email, " ",  password)
-    console.log(profile)
+    const email = req.user.email;
+
+    console.log(email)
 
     let logindatas;
-    const role = "admin"
+    const role = "user"
     try {
 
         if (!name || !email || !password) {
@@ -51,13 +102,12 @@ const Signup = async (req, res) => {
     if (!logindatas) {
         return res.status(404).json({ 'message': 'unable to signup' })
     }
+    //return res.status(201).json({ 'message': logindatas })
     return res.status(201).json({ 'message': 'account created' })
 }
 
 const login = async (req, res) => {
     const { email, password } = req.body;
-    console.log(email)
-    console.log(password)
 
     try {
         const checkexistemail = await prisma.user.findUnique({
@@ -119,6 +169,34 @@ const verifyjwt = (req, res, next) => {
     }
 }
 
+
+const passwordReset = async (req, res) => {
+    const { password } = req.body;
+    let datas;
+
+    const email = req.user.email;
+
+    const hasedpasswprd = await bcrypt.hash(password, 10)
+
+    try {
+        datas = await prisma.user.update({
+            where: {
+                email: email
+            },
+            data: {
+                password: hasedpasswprd
+            }
+        })
+    } catch (err) {
+        console.log(err)
+    } 
+    if (!datas) {
+        return res.status(404).json({ 'message': 'unable to signup' })
+    }
+    return res.status(201).json({ 'message': datas })
+    //return res.status(201).json({ 'message': 'account created' })
+}
+
 const checkuser = (req, res) => {
     res.json({ isLoggedIn: true, name: req.user.name })
 }
@@ -127,3 +205,7 @@ exports.Signup = Signup;
 exports.login = login;
 exports.verifyjwt = verifyjwt;
 exports.checkuser = checkuser;
+
+exports.generateEmail = generateEmail;
+exports.verifyEmail = verifyEmail;
+exports.passwordReset = passwordReset;

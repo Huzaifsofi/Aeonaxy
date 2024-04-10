@@ -27,7 +27,7 @@ model Course {
   id         String   @id @default(uuid())
   name       String
   categories Categories
-  like       String
+  like       Int
   level      Level
   users      User[] 
 }

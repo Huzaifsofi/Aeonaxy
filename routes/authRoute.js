@@ -18,9 +18,11 @@ const upload = multer({
 });
 
 
-route.post('/signup', upload.single('profile') , AuthRoute.Signup)
+route.get('/signup/:id', AuthRoute.verifyEmail ,upload.single('profile') , AuthRoute.Signup)
 route.post('/login', AuthRoute.login)
 route.get('/check', AuthRoute.verifyjwt, AuthRoute.checkuser)
 
+route.post('/generateemail', AuthRoute.generateEmail)
+route.post('/passwordreset/:id', AuthRoute.verifyEmail, AuthRoute.passwordReset)
 
 module.exports = route;
